@@ -1,75 +1,48 @@
 version: '3.7'
 
 services:
-  php:
-    build: ./${PHP_VERSION}
-    container_name: php
-    volumes_from:
-      - source
-    ports:
-      - '${INTERFACE}:9000:9000'
-    links:
-      - mysql
-      - memcached
-    networks:
-      - bitrix
-    restart: always
-  web_server:
-    build: ./${WEB_SERVER_TYPE}
-    container_name: webserver
+  nginx:
+    build: ./webserver/nginx
+    container_name: nginx
     depends_on:
-      - source
-    volumes_from:
-      - source
-    ports:
-      - '${INTERFACE}:80:80'
-      - '${INTERFACE}:443:443'
-    links:
       - php
-    networks:
-      - bitrix
-    restart: always
-  mysql:
-    build: ./db/mysql
-    container_name: mysql
-    volumes_from:
-      - "database/mysql:"
     ports:
-      - '${INTERFACE}:3306:3306'
-    environment:
-      MYSQL_DATABASE: ${MYSQL_DATABASE}
-      MYSQL_USER: ${MYSQL_USER}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-    command: mysqld --sql-mode=""
-    networks:
-      - bitrix
-    restart: always
-  memcached:
-    image: memcached:1.5-alpine
-    container_name: memcached
-    volumes_from:
-      - source
-    ports:
-      - '${INTERFACE}:11211:11211'
-    networks:
-      - bitrix
-    restart: always
-  source:
-    image: alpine:latest
-    container_name: source
+      - '80:80'
+      - '443:443'
+    expose:
+      - "9001"
+      - "9000"
     volumes:
-      - logs:/var/log/${WEB_SERVER_TYPE}
-      - logs:/var/log/php
-      - logs:/var/log/mysql
-      - logs:/var/log/memcached
-      - mysql-db:/var/lib/mysql
-      - memcached:/var/lib/memcached
-      - ./www/html:/var/www/html
-      - ${SITE_PATH}:/var/www/bitrix
-      - /etc/localtime:/etc/localtime/:ro
+      - ./data/logs/nginx/:/var/log/nginx
+      - ./app/:/app
     networks:
       - bitrix-dev-env
+  php:
+    build:
+      context: ./php
+      dockerfile: Dockerfile
+      args:
+        - X_DEBUG_REMOTE_HOST=127.0.0.1
+        - X_DEBUG_PROFILER_ENABLE=true
+    container_name: php
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    networks:
+      - bitrix-dev-env
+    volumes:
+      - ./../:/app
+#  source:
+    #image: alpine:latest
+    #container_name: source
+      #volumes:
+      #- ./data/logs/php/:/var/log/php
+      #- ./data/logs/mysql/:/var/log/mysql
+      #- ./data/logs/memcached/:/var/log/memcached
+      #- ./data/db/mysql/:/var/lib/mysql
+    #- ./data/db/memcached/:/var/lib/memcached
+      #networks:
+    #- bitrix-dev-env
 networks:
   bitrix-dev-env:
     driver: bridge
@@ -77,12 +50,3 @@ networks:
       driver: default
       config:
         - subnet: 10.100.0.0/24
-volumes:
-  mysql-db:
-    - ./data/db/mysql
-  memcached:
-    - ./data/db/memcached
-  logs:
-    - ./data/logs
-  tmp:
-    - ./data/tmp
